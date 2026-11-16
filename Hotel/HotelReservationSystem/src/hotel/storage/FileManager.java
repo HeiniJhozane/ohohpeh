@@ -1,6 +1,7 @@
 package hotel.storage;
 
 import hotel.model.Guest;
+import hotel.model.Room;
 import hotel.model.StaffAccount;
 import hotel.service.AuthService;
 import hotel.service.GuestSummary;
@@ -21,6 +22,7 @@ public class FileManager {
     private static final String STAFF_FILE = DATA_DIR + "/staff.txt";
     private static final String GUEST_FILE = DATA_DIR + "/guests.txt";
     private static final String GUEST_REPORT_FILE = DATA_DIR + "/guest_report.txt";
+    private static final String ROOM_FILE = DATA_DIR + "/rooms.txt";
 
     /** Loads staff accounts. A missing file is recreated with a default admin; bad lines are skipped. */
     public Map<String, StaffAccount> loadStaff() {
@@ -164,6 +166,71 @@ public class FileManager {
         list.add(new Guest(6, 206, "Heini Jhozane Llaneta", phone, "", "Manito, Albay", in, out));
         list.add(new Guest(7, 207, "Rachelle Ortiz", "", "", "Guinobatan, Albay", in, out));
         list.add(new Guest(8, 208, "Ella Marie", phone, "", "Daraga, Albay", in, out));
+        return list;
+    }
+
+    // ---------------- rooms ----------------
+
+    /**
+     * Loads rooms from data/rooms.txt. A missing file is created with 50 sample rooms so the
+     * screen isn't empty on first run. Bad lines are skipped.
+     */
+    public List<Room> loadRooms() {
+        List<Room> list = new ArrayList<>();
+        File file = new File(ROOM_FILE);
+
+        if (!file.exists()) {
+            list = sampleRooms();
+            saveRooms(list);
+            return list;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.isBlank()) continue;
+                try {
+                    list.add(Room.fromFileString(line));
+                } catch (RuntimeException e) { // bad / corrupted line
+                    System.err.println("Skipped bad room line: " + line);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Could not read " + ROOM_FILE + ": " + e.getMessage());
+        }
+        return list;
+    }
+
+    public void saveRooms(Collection<Room> rooms) {
+        new File(DATA_DIR).mkdirs();
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(ROOM_FILE))) {
+            for (Room r : rooms) {
+                bw.write(r.toFileString());
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            System.err.println("Could not save " + ROOM_FILE + ": " + e.getMessage());
+        }
+    }
+
+    /** 50 sample rooms: 5 floors x 10 rooms (15 available, 30 occupied, 5 reserved). Delete data/rooms.txt to reset. */
+    private List<Room> sampleRooms() {
+        List<Room> list = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            int floor = i / 10 + 1;
+            int slot = i % 10;
+            int number = floor * 100 + slot + 1;               // 101..110, 201..210, ...
+
+            Room.RoomType type = floor == 1 ? Room.RoomType.STANDARD
+                    : floor <= 3 ? Room.RoomType.DELUXE : Room.RoomType.SUITE;
+            int rate = type == Room.RoomType.STANDARD ? 2000 : type == Room.RoomType.DELUXE ? 3500 : 5000;
+            int capacity = type == Room.RoomType.STANDARD ? 2 : type == Room.RoomType.DELUXE ? 3 : 4;
+
+            Room.RoomStatus status = slot < 3 ? Room.RoomStatus.AVAILABLE
+                    : slot == 9 ? Room.RoomStatus.RESERVED : Room.RoomStatus.OCCUPIED;
+
+            list.add(new Room(number, type, floor, rate, capacity, status));
+        }
         return list;
     }
 }
