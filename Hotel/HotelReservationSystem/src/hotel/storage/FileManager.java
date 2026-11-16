@@ -1,5 +1,6 @@
 package hotel.storage;
 
+import hotel.model.Booking;
 import hotel.model.Guest;
 import hotel.model.Room;
 import hotel.model.StaffAccount;
@@ -16,13 +17,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** All file reading/writing lives here. (Staff and guests so far; rooms and bookings get added later.) */
+/** All file reading/writing lives here: staff, guests, rooms and bookings (plus the text reports/receipts). */
 public class FileManager {
     private static final String DATA_DIR = "data";
     private static final String STAFF_FILE = DATA_DIR + "/staff.txt";
     private static final String GUEST_FILE = DATA_DIR + "/guests.txt";
     private static final String GUEST_REPORT_FILE = DATA_DIR + "/guest_report.txt";
     private static final String ROOM_FILE = DATA_DIR + "/rooms.txt";
+    private static final String BOOKING_FILE = DATA_DIR + "/bookings.txt";
 
     /** Loads staff accounts. A missing file is recreated with a default admin; bad lines are skipped. */
     public Map<String, StaffAccount> loadStaff() {
@@ -167,6 +169,83 @@ public class FileManager {
         list.add(new Guest(7, 207, "Rachelle Ortiz", "", "", "Guinobatan, Albay", in, out));
         list.add(new Guest(8, 208, "Ella Marie", phone, "", "Daraga, Albay", in, out));
         return list;
+    }
+
+    // ---------------- bookings ----------------
+
+    /** Loads bookings from data/bookings.txt. A missing file just means no bookings yet. Bad lines are skipped. */
+    public List<Booking> loadBookings() {
+        List<Booking> list = new ArrayList<>();
+        File file = new File(BOOKING_FILE);
+        if (!file.exists()) return list;
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.isBlank()) continue;
+                try {
+                    list.add(Booking.fromFileString(line));
+                } catch (RuntimeException e) { // bad / corrupted line
+                    System.err.println("Skipped bad booking line: " + line);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Could not read " + BOOKING_FILE + ": " + e.getMessage());
+        }
+        return list;
+    }
+
+    public void saveBookings(Collection<Booking> bookings) {
+        new File(DATA_DIR).mkdirs();
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(BOOKING_FILE))) {
+            for (Booking b : bookings) {
+                bw.write(b.toFileString());
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            System.err.println("Could not save " + BOOKING_FILE + ": " + e.getMessage());
+        }
+    }
+
+    /** Writes a plain-text payment receipt to data/receipt_000N.txt. Returns the path, or null on failure. */
+    public String saveReceipt(Booking b) {
+        new File(DATA_DIR).mkdirs();
+        String path = DATA_DIR + "/receipt_" + String.format("%04d", b.getId()) + ".txt";
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(path))) {
+            String[] lines = {
+                "HERZ HOTEL - PAYMENT RECEIPT",
+                "Receipt no.   : " + String.format("%04d", b.getId()),
+                "Status        : " + (b.isPaid() ? "PAID" : "UNPAID"),
+                "",
+                "Guest         : " + b.getGuestName(),
+                "Booking type  : " + b.getType(),
+                "",
+                "STAY SUMMARY",
+                b.getRoomType() + " - Room " + b.getRoomNumber(),
+                b.getStayRangeText() + " (" + Booking.nightsText(b.getNights()) + ")",
+                "",
+                Booking.money(b.getRate()) + " x " + Booking.nightsText(b.getNights())
+                        + " = " + Booking.money(b.getTotal()),
+                "Total stay cost : " + Booking.money(b.getTotal()),
+                "Room charge     : " + Booking.money(b.getTotal()),
+                "Payment received: " + Booking.money(b.getAmountPaid()),
+                "",
+                b.getPaidOn() == null
+                        ? "Payment not recorded yet"
+                        : "Paid " + b.getPaidOn().format(Guest.DISPLAY_DATE)
+                                + " - Received by " + b.getReceivedBy(),
+                "",
+                "Thank you for choosing Herz"
+            };
+            for (String line : lines) {
+                bw.write(line);
+                bw.newLine();
+            }
+            return new File(path).getPath();
+        } catch (IOException e) {
+            System.err.println("Could not save " + path + ": " + e.getMessage());
+            return null;
+        }
     }
 
     // ---------------- rooms ----------------

@@ -66,6 +66,21 @@ public class RoomService {
         return rooms.size();
     }
 
+    /** Every room, sorted by room number (used by the booking form's room dropdown). */
+    public List<Room> getAll() {
+        return search("", null, null);
+    }
+
+    public Room findByNumber(int roomNumber) throws RoomNotFoundException {
+        return rooms.get(indexOf(roomNumber));
+    }
+
+    /** Changes only the status (e.g. Reserved/Occupied after a booking) and saves straight away. */
+    public void setStatus(int roomNumber, RoomStatus status) throws RoomNotFoundException {
+        rooms.get(indexOf(roomNumber)).setStatus(status);
+        files.saveRooms(rooms);
+    }
+
     /** How many rooms have this status. Pass null to count every room. */
     public int countByStatus(RoomStatus status) {
         if (status == null) return rooms.size();
