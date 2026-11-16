@@ -148,6 +148,32 @@ public class Guest {
         return (int) java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
     }
 
+    /** "G-0241" style code shown under the title of the Edit guest dialog. */
+    public String getCode() {
+        return String.format("G-%04d", id);
+    }
+
+    /** Everything before the last space, e.g. "Trisha Mae" for "Trisha Mae Dajac" (whole name if one word). */
+    public String getFirstName() {
+        int i = name.lastIndexOf(' ');
+        return i < 0 ? name : name.substring(0, i).trim();
+    }
+
+    /** The last word of the name, e.g. "Dajac" (empty if the name is one word). */
+    public String getLastName() {
+        int i = name.lastIndexOf(' ');
+        return i < 0 ? "" : name.substring(i + 1).trim();
+    }
+
+    /** Subtitle for the Edit guest dialog: "No active reservations", "Currently staying · Room 205", ... */
+    public String getReservationText(LocalDate today) {
+        switch (getStatus(today)) {
+            case UPCOMING: return "Upcoming reservation \u00b7 Room " + roomNumber;
+            case IN_HOUSE: return "Currently staying \u00b7 Room " + roomNumber;
+            default:       return "No active reservations";
+        }
+    }
+
     public String getCheckInText() {
         return checkIn.format(DISPLAY_DATE);
     }
